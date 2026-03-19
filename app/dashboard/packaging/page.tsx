@@ -1,29 +1,61 @@
 'use client'
-import { useState } from 'react'
-
-const materials = ['Plastic','Paper','Glass','Metal','Wood','Other']
-const countries = ['DE','FR','BE']
+import { useState, useEffect } from 'react'
 
 export default function PackagingPage() {
-  const [rows, setRows] = useState([
-    { id: 1, country: 'DE', start: '2026-01-01', end: '2026-03-31', vals: Object.fromEntries(materials.map(m=>[m,''])) }
-  ])
-  const [csv, setCsv] = useState('')
+  const [material, setMaterial] = useState('')
+  const [weight, setWeight] = useState('')
+  const [country, setCountry] = useState('DE')
+  const [notes, setNotes] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [entries, setEntries] = useState<any[]>([])
+  const [saved, setSaved] = useState(false)
 
-  function addRow() {
-    setRows(r => [...r, { id: Date.now(), country: 'DE', start: '2026-01-01', end: '2026-06-30', vals: Object.fromEntries(materials.map(m=>[m,''])) }])
+  useEffect(() => {
+    // Load packaging data
+    fetchEntries()
+  }, [])
+
+  async function fetchEntries() {
+    try {
+      const res = await fetch('/api/packaging/list')
+      const data = await res.json()
+      setEntries(data || [])
+    } catch (err) {
+      console.error('Failed to fetch entries:', err)
+    }
   }
-  function updateRow(id: number, field: string, val: string) {
-    setRows(r => r.map(row => row.id===id ? {...row,[field]:val} : row))
-  }
-  function updateMat(id: number, mat: string, val: string) {
-    setRows(r => r.map(row => row.id===id ? {...row, vals:{...row.vals,[mat]:val}} : row))
-  }
-  function removeRow(id: number) { setRows(r => r.filter(row => row.id!==id)) }
-  function exportCsv() {
-    const header = ['country','start_date','end_date',...materials].join(',')
-    const lines = rows.map(r => [r.country,r.start,r.end,...materials.map(m=>r.vals[m]||'0')].join(','))
-    setCsv([header,...lines].join('\n'))
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault()
+    if (!material || !weight) return
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/packaging/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          material_type: material,
+          weight_kg: parseFloat(weight),
+          country,
+          notes,
+        }),
+      })
+
+      if (!res.ok) throw new Error('Failed to add entry')
+
+      setMaterial('')
+      setWeight('')
+      setNotes('')
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      await fetchEntries()
+    } catch (err) {
+      console.error('Add error:', err)
+      alert('Failed to add entry')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -32,101 +64,123 @@ export default function PackagingPage() {
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
         .pg {
           height: 100vh; display: flex; flex-direction: column;
-          padding: 32px 36px; gap: 20px; overflow: hidden;
+          padding: 32px 36px; gap: 24px; overflow: hidden;
           background: #f0ece4;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
-        .pg-head { display: flex; justify-content: space-between; align-items: flex-end; flex-shrink: 0; }
         .pg-title { font-size: 1.3rem; font-weight: 700; color: #1e1810; letter-spacing: -0.02em; }
         .pg-sub { font-size: 0.82rem; color: #9a8a72; margin-top: 3px; }
-        .btns { display: flex; gap: 10px; }
-        .btn-p { background: #1e1810; color: #f5f0e8; font-size: 0.85rem; font-weight: 600; padding: 9px 18px; border: none; border-radius: 8px; cursor: pointer; white-space: nowrap; }
-        .btn-p:hover { background: #3a2e1e; }
-        .btn-g { background: #faf7f2; color: #4a3f2f; font-size: 0.85rem; font-weight: 500; padding: 9px 18px; border: 1px solid rgba(180,160,130,0.35); border-radius: 8px; cursor: pointer; white-space: nowrap; }
-        .btn-g:hover { background: #ede9e1; }
-        .tbl-wrap {
-          flex: 1; min-height: 0; overflow: auto;
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; flex: 1; min-height: 0; }
+        .form-card, .list-card {
           background: #faf7f2; border: 1px solid rgba(180,160,130,0.28);
-          border-radius: 14px;
+          border-radius: 16px; padding: 28px 32px;
+          display: flex; flex-direction: column; gap: 18px;
         }
-        table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
-        thead { position: sticky; top: 0; background: #faf7f2; z-index: 2; }
-        thead th {
-          padding: 13px 14px; text-align: left;
-          font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em;
-          color: #9a8a72; border-bottom: 1px solid rgba(180,160,130,0.22);
-          white-space: nowrap;
+        .list-card { overflow-y: auto; }
+        .form-title { font-size: 0.95rem; font-weight: 700; color: #1e1810; margin-bottom: 6px; }
+        .field { display: flex; flex-direction: column; gap: 6px; }
+        .field label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #9a8a72; }
+        .field input, .field select {
+          background: #f0ece4; border: 1px solid rgba(180,160,130,0.35);
+          border-radius: 9px; padding: 11px 14px; font-size: 0.9rem;
+          color: #1e1810; outline: none; transition: border-color 0.15s;
+          width: 100%;
         }
-        tbody td { padding: 10px 14px; border-bottom: 1px solid rgba(180,160,130,0.1); }
-        tbody tr:last-child td { border-bottom: none; }
-        input[type=text], input[type=date] {
-          background: #f0ece4; border: 1px solid rgba(180,160,130,0.3);
-          border-radius: 7px; padding: 7px 10px; font-size: 0.82rem;
-          color: #1e1810; width: 100%; outline: none; min-width: 72px;
+        .field input:focus, .field select:focus { border-color: #4a7ab5; }
+        .field textarea {
+          background: #f0ece4; border: 1px solid rgba(180,160,130,0.35);
+          border-radius: 9px; padding: 11px 14px; font-size: 0.9rem;
+          color: #1e1810; outline: none; font-family: inherit; resize: vertical;
+          min-height: 70px;
         }
-        select {
-          background: #f0ece4; border: 1px solid rgba(180,160,130,0.3);
-          border-radius: 7px; padding: 7px 10px; font-size: 0.82rem;
-          color: #1e1810; outline: none;
+        .save-btn {
+          background: #1e1810; color: #f5f0e8; font-size: 0.9rem; font-weight: 600;
+          padding: 11px 26px; border: none; border-radius: 9px; cursor: pointer;
+          transition: background 0.15s;
         }
-        input:focus, select:focus { border-color: #4a7ab5; }
-        .del { background: none; border: none; color: #c0a090; cursor: pointer; font-size: 16px; padding: 3px 8px; border-radius: 6px; }
-        .del:hover { background: rgba(180,80,60,0.08); color: #b94040; }
-        .csv-panel {
-          flex-shrink: 0; background: #faf7f2;
-          border: 1px solid rgba(180,160,130,0.25); border-radius: 11px;
-          padding: 12px 16px; max-height: 88px; overflow: auto;
+        .save-btn:hover { background: #3a2e1e; }
+        .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .saved-msg { font-size: 0.85rem; color: #3d8f6a; font-weight: 500; }
+
+        .entry {
+          display: flex; justify-content: space-between; align-items: center;
+          padding: 12px; background: #f5f2ed; border-radius: 8px;
+          border-left: 3px solid #3d8f6a;
         }
-        .csv-label { font-size: 10px; color: #9a8a72; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
-        .csv-panel pre { font-size: 0.74rem; color: #7a6a55; white-space: pre; }
+        .entry-info { display: flex; flex-direction: column; gap: 3px; }
+        .entry-material { font-size: 0.9rem; font-weight: 600; color: #1e1810; }
+        .entry-meta { font-size: 0.8rem; color: #9a8a72; }
+        .entry-weight { font-size: 1rem; font-weight: 700; color: #1e1810; }
       `}</style>
+
       <div className="pg">
-        <div className="pg-head">
-          <div>
-            <div className="pg-title">Packaging Data</div>
-            <div className="pg-sub">Enter material weights per country and reporting period</div>
-          </div>
-          <div className="btns">
-            <button className="btn-g" onClick={addRow}>+ Add row</button>
-            <button className="btn-p" onClick={exportCsv}>Export CSV</button>
-          </div>
+        <div>
+          <div className="pg-title">Packaging Data</div>
+          <div className="pg-sub">Track and manage your packaging entries</div>
         </div>
 
-        <div className="tbl-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Country</th><th>Start</th><th>End</th>
-                {materials.map(m => <th key={m}>{m} (kg)</th>)}
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(row => (
-                <tr key={row.id}>
-                  <td>
-                    <select value={row.country} onChange={e=>updateRow(row.id,'country',e.target.value)}>
-                      {countries.map(c=><option key={c}>{c}</option>)}
-                    </select>
-                  </td>
-                  <td><input type="date" value={row.start} onChange={e=>updateRow(row.id,'start',e.target.value)}/></td>
-                  <td><input type="date" value={row.end} onChange={e=>updateRow(row.id,'end',e.target.value)}/></td>
-                  {materials.map(m=>(
-                    <td key={m}><input type="text" placeholder="0" value={row.vals[m]} onChange={e=>updateMat(row.id,m,e.target.value)}/></td>
-                  ))}
-                  <td><button className="del" onClick={()=>removeRow(row.id)}>×</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {csv && (
-          <div className="csv-panel">
-            <div className="csv-label">CSV Export</div>
-            <pre>{csv}</pre>
+        <div className="grid-2">
+          {/* Form */}
+          <div className="form-card">
+            <div className="form-title">Add New Entry</div>
+            <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="field">
+                <label>Material Type</label>
+                <select value={material} onChange={e => setMaterial(e.target.value)} required>
+                  <option value="">Select material</option>
+                  <option value="Plastic">Plastic</option>
+                  <option value="Paper">Paper</option>
+                  <option value="Glass">Glass</option>
+                  <option value="Metal">Metal</option>
+                  <option value="Mixed">Mixed</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Weight (kg)</label>
+                <input type="number" step="0.01" placeholder="0.00" value={weight} onChange={e => setWeight(e.target.value)} required />
+              </div>
+              <div className="field">
+                <label>Country</label>
+                <select value={country} onChange={e => setCountry(e.target.value)}>
+                  <option value="DE">Germany</option>
+                  <option value="FR">France</option>
+                  <option value="BE">Belgium</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Notes (optional)</label>
+                <textarea placeholder="Add any notes..." value={notes} onChange={e => setNotes(e.target.value)} />
+              </div>
+              <button className="save-btn" type="submit" disabled={loading}>
+                {loading ? 'Adding...' : '+ Add Entry'}
+              </button>
+              {saved && <div className="saved-msg">✓ Entry saved</div>}
+            </form>
           </div>
-        )}
+
+          {/* List */}
+          <div className="list-card">
+            <div className="form-title">Recent Entries ({entries.length})</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {entries.length === 0 ? (
+                <div style={{ color: '#9a8a72', fontSize: '0.85rem', textAlign: 'center', paddingTop: '20px' }}>
+                  No entries yet
+                </div>
+              ) : (
+                entries.slice(0, 20).map((e, i) => (
+                  <div key={i} className="entry">
+                    <div className="entry-info">
+                      <div className="entry-material">{e.material_type}</div>
+                      <div className="entry-meta">{e.country} · {new Date(e.date).toLocaleDateString()}</div>
+                    </div>
+                    <div className="entry-weight">{e.weight_kg} kg</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </>
   )
