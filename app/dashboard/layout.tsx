@@ -10,16 +10,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .layout { display: flex; height: 100vh; overflow: hidden; }
         .sidebar {
           width: 220px; min-width: 220px; height: 100vh;
-          background: #1e2a3a; display: flex; flex-direction: column;
-          padding: 28px 20px; gap: 6px; overflow: hidden;
+          background: #1a2332; display: flex; flex-direction: column;
+          padding: 28px 16px 24px; overflow: hidden;
         }
         .sidebar-logo {
           font-size: 1rem; font-weight: 700; color: #f0ece4;
-          letter-spacing: -0.01em; margin-bottom: 28px; padding: 0 8px;
+          letter-spacing: -0.01em; margin-bottom: 32px; padding: 0 8px;
         }
+        .nav-top { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+        .nav-bottom { display: flex; flex-direction: column; gap: 2px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.06); }
         .nav-link {
           display: block; padding: 10px 12px; border-radius: 9px;
-          color: #8a9ab0; font-size: 0.9rem; font-weight: 500;
+          color: #6a7d94; font-size: 0.875rem; font-weight: 500;
           text-decoration: none; transition: background 0.15s, color 0.15s;
         }
         .nav-link:hover { background: rgba(255,255,255,0.06); color: #f0ece4; }
@@ -28,11 +30,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="layout">
         <div className="sidebar">
           <div className="sidebar-logo">PackRegix</div>
-          <Link href="/dashboard" className="nav-link">Overview</Link>
-          <Link href="/dashboard/packaging" className="nav-link">Packaging</Link>
-          <Link href="/dashboard/reports" className="nav-link">Reports</Link>
-          <Link href="/dashboard/calendar" className="nav-link">Calendar</Link>
-          <Link href="/dashboard/billing" className="nav-link">Billing</Link>
+          <div className="nav-top">
+            <Link href="/dashboard" className="nav-link">Overview</Link>
+            <Link href="/dashboard/packaging" className="nav-link">Packaging</Link>
+            <Link href="/dashboard/reports" className="nav-link">Reports</Link>
+            <Link href="/dashboard/calendar" className="nav-link">Calendar</Link>
+          </div>
+          <div className="nav-bottom">
+            <Link href="/dashboard/account" className="nav-link">Account</Link>
+          </div>
         </div>
         <div className="main">{children}</div>
       </div>
