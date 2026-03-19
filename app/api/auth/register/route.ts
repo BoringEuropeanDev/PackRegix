@@ -1,7 +1,8 @@
 import { createRouteHandlerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-const supabase = createRouteHandlerClient({ cookies() })
+const supabase = createRouteHandlerClient({ cookies() });
+
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
