@@ -1,42 +1,41 @@
-'use client';  // <- MUST BE LINE 1
+import Link from 'next/link'
 
-import Link from 'next/link';
-import { ReactNode } from 'react';  // <- Required import
-
-const nav = [
-  { href: '/dashboard', label: 'Overview' },
-  { href: '/dashboard/packaging', label: 'Packaging' },
-  { href: '/dashboard/reports', label: 'Reports' },
-  { href: '/dashboard/calendar', label: 'Calendar' },
-  { href: '/dashboard/billing', label: 'Billing' }
-];
-
-export default function DashboardLayout({ 
-  children 
-}: { 
-  children: ReactNode 
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-stone-100 dark:bg-stone-950">
-      <div className="mx-auto grid max-w-7xl gap-4 p-4 md:grid-cols-[230px_1fr]">
-        <aside className="rounded-2xl bg-slate-700 p-4 text-stone-50">
-          <h2 className="mb-6 text-xl font-semibold">PackRegix</h2>
-          <nav className="space-y-2">
-            {nav.map((item) => (
-              <Link 
-                key={item.href} 
-                href={{ pathname: item.href as string }}
-                className="block rounded-lg px-3 py-2 hover:bg-stone-50/10"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </aside>
-        <section className="rounded-2xl bg-white p-6 dark:bg-stone-900 shadow-sm">
-          {children}
-        </section>
+    <>
+      <style>{`
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .layout { display: flex; height: 100vh; overflow: hidden; }
+        .sidebar {
+          width: 220px; min-width: 220px; height: 100vh;
+          background: #1e2a3a; display: flex; flex-direction: column;
+          padding: 28px 20px; gap: 6px; overflow: hidden;
+        }
+        .sidebar-logo {
+          font-size: 1rem; font-weight: 700; color: #f0ece4;
+          letter-spacing: -0.01em; margin-bottom: 28px; padding: 0 8px;
+        }
+        .nav-link {
+          display: block; padding: 10px 12px; border-radius: 9px;
+          color: #8a9ab0; font-size: 0.9rem; font-weight: 500;
+          text-decoration: none; transition: background 0.15s, color 0.15s;
+        }
+        .nav-link:hover { background: rgba(255,255,255,0.06); color: #f0ece4; }
+        .main { flex: 1; height: 100vh; overflow: hidden; background: #f0ece4; }
+      `}</style>
+      <div className="layout">
+        <div className="sidebar">
+          <div className="sidebar-logo">PackRegix</div>
+          <Link href="/dashboard" className="nav-link">Overview</Link>
+          <Link href="/dashboard/packaging" className="nav-link">Packaging</Link>
+          <Link href="/dashboard/reports" className="nav-link">Reports</Link>
+          <Link href="/dashboard/calendar" className="nav-link">Calendar</Link>
+          <Link href="/dashboard/billing" className="nav-link">Billing</Link>
+        </div>
+        <div className="main">{children}</div>
       </div>
-    </div>
-  );
+    </>
+  )
 }
