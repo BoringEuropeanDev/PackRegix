@@ -1,6 +1,7 @@
-import crypto from 'crypto';
-import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase';
+import { createRouteHandlerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+const supabase = createRouteHandlerClient({ cookies() })
 
 function verifySignature(rawBody: string, signature: string | null) {
   if (!signature || !process.env.LEMON_WEBHOOK_SECRET) return false;
