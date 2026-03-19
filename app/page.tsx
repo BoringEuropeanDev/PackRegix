@@ -347,4 +347,30 @@ export default function Home() {
               {error && <div className="modal-err">⚠ {error}</div>}
             </form>
             <p className="modal-note">By signing up you agree to our terms of service.</p>
-            <p className="modal-switch">Already have 
+            <p className="modal-switch">Already have an account? <button onClick={() => { resetModal(); setShowSignup(false); setShowLogin(true) }}>Sign in</button></p>
+          </div>
+        </div>
+      )}
+
+      {/* Login modal */}
+      {showLogin && (
+        <div className="overlay" onClick={e => { if (e.target === e.currentTarget) setShowLogin(false) }}>
+          <div className="modal">
+            <button className="modal-close" onClick={() => setShowLogin(false)}>×</button>
+            <h2>Welcome back</h2>
+            <p className="modal-sub">Sign in to your workspace</p>
+            <form onSubmit={handleLogin}>
+              <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
+              <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
+              <button className="modal-btn" type="submit" disabled={loading}>
+                {loading ? 'Signing in…' : 'Sign in →'}
+              </button>
+              {error && <div className="modal-err">⚠ {error}</div>}
+            </form>
+            <p className="modal-switch">No account yet? <button onClick={() => { resetModal(); setShowLogin(false); setShowSignup(true) }}>Start free trial</button></p>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
