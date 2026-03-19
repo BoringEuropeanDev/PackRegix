@@ -11,15 +11,15 @@
   },
   "dependencies": {
     "date-fns": "^4.1.0",
-    "firebase": "^11.5.0",
-    "firebase-admin": "^13.1.0",
     "framer-motion": "^12.6.3",
     "next": "15.2.4",
     "nodemailer": "^6.10.0",
     "papaparse": "^5.5.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-hook-form": "^7.54.2"
+    "react-hook-form": "^7.54.2",
+    "@supabase/auth-helpers-nextjs": "^0.10.1",
+    "@supabase/supabase-js": "^2.45.4"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
