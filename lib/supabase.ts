@@ -1,20 +1,16 @@
-import { createClientComponentClient, createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+// lib/supabase.ts - Supabase SSR for Next.js 15
+import { createServerClient, createRouteHandlerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { createClient } from '@supabase/supabase-js'
 
-export const createClient = () => createClientComponentClient();
+export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+export const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export const createServerClient = (cookieStore: any) =>
-  createServerComponentClient({ cookies: () => cookieStore });
+export const createClientComponentClient = () => 
+  createClient(supabaseUrl, supabaseAnonKey)
 
-export const createServiceClient = () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export const createServerComponentClient = () => 
+  createServerClient(supabaseUrl, supabaseAnonKey, cookies())
 
-  if (!url || !serviceRoleKey) {
-    throw new Error('Supabase service credentials are missing');
-  }
-
-  return createSupabaseClient(url, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-};
+export const createRouteHandlerClient = () => 
+  createRouteHandlerClient({ cookies })
