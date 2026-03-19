@@ -3,8 +3,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 export default function Home() {
-  const [email, setEmail] = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -21,7 +21,7 @@ export default function Home() {
         body: JSON.stringify({ email, password }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Signup failed')
+      if (!res.ok) throw new Error(data.error || 'Something went wrong')
       router.push('/dashboard')
     } catch (err: any) {
       setError(err.message)
@@ -30,208 +30,285 @@ export default function Home() {
     }
   }
 
+  const faces = ['front','back','left','right','top','bottom']
+  const cubes = [
+    { cls: 'c1', s: 48, top: '11%', left: '7%', dur: '14s' },
+    { cls: 'c2', s: 32, top: '18%', right: '9%', dur: '10s', dir: 'reverse' },
+    { cls: 'c3', s: 24, bottom: '22%', left: '12%', dur: '18s' },
+    { cls: 'c4', s: 40, bottom: '14%', right: '10%', dur: '12s', dir: 'reverse' },
+  ]
+
+  function faceTransform(f: string, s: number) {
+    const h = `${s / 2}px`
+    if (f === 'front')  return `translateZ(${h})`
+    if (f === 'back')   return `rotateY(180deg) translateZ(${h})`
+    if (f === 'left')   return `rotateY(-90deg) translateZ(${h})`
+    if (f === 'right')  return `rotateY(90deg) translateZ(${h})`
+    if (f === 'top')    return `rotateX(90deg) translateZ(${h})`
+    return `rotateX(-90deg) translateZ(${h})`
+  }
+
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; overflow: hidden; }
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
-        .scene {
-          width: 100vw; height: 100vh;
-          background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f2744 100%);
+        .wrap {
+          width: 100vw; height: 100vh; overflow: hidden;
+          background: #080d14;
           display: flex; align-items: center; justify-content: center;
-          position: relative; overflow: hidden;
+          position: relative;
         }
 
-        /* Animated grid */
-        .grid-bg {
-          position: absolute; inset: 0;
+        /* subtle noise texture overlay */
+        .wrap::before {
+          content: ''; position: absolute; inset: 0;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+          opacity: 0.35; pointer-events: none; z-index: 1;
+        }
+
+        /* grid */
+        .grid {
+          position: absolute; inset: 0; z-index: 0;
           background-image:
-            linear-gradient(rgba(99,179,237,0.07) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(99,179,237,0.07) 1px, transparent 1px);
-          background-size: 60px 60px;
-          animation: gridMove 20s linear infinite;
-        }
-        @keyframes gridMove {
-          0% { transform: perspective(800px) rotateX(20deg) translateY(0); }
-          100% { transform: perspective(800px) rotateX(20deg) translateY(60px); }
+            linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+          background-size: 72px 72px;
         }
 
-        /* Glow orbs */
+        /* orbs */
         .orb {
           position: absolute; border-radius: 50%;
-          filter: blur(80px); opacity: 0.25; pointer-events: none;
+          pointer-events: none; filter: blur(100px);
         }
-        .orb-1 { width: 500px; height: 500px; background: #3b82f6; top: -150px; right: -100px; animation: float1 8s ease-in-out infinite; }
-        .orb-2 { width: 350px; height: 350px; background: #10b981; bottom: -100px; left: -80px; animation: float2 10s ease-in-out infinite; }
-        .orb-3 { width: 250px; height: 250px; background: #6366f1; top: 40%; left: 30%; animation: float3 7s ease-in-out infinite; }
-        @keyframes float1 { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-30px)} }
-        @keyframes float2 { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(25px)} }
-        @keyframes float3 { 0%,100%{transform:translateY(0px) translateX(0px)} 50%{transform:translateY(-20px) translateX(15px)} }
+        .o1 { width: 560px; height: 560px; background: #1d4ed8; opacity: 0.12; top: -180px; right: -120px; }
+        .o2 { width: 420px; height: 420px; background: #065f46; opacity: 0.14; bottom: -140px; left: -100px; }
+        .o3 { width: 280px; height: 280px; background: #4338ca; opacity: 0.1; top: 38%; left: 32%; }
 
-        /* 3D floating cubes */
-        .cube { position: absolute; transform-style: preserve-3d; animation: spin 12s linear infinite; }
-        .cube-1 { top: 12%; left: 8%; width: 50px; height: 50px; animation-duration: 14s; }
-        .cube-2 { top: 20%; right: 10%; width: 35px; height: 35px; animation-duration: 10s; animation-direction: reverse; }
-        .cube-3 { bottom: 20%; left: 15%; width: 28px; height: 28px; animation-duration: 18s; }
-        .cube-4 { bottom: 15%; right: 12%; width: 42px; height: 42px; animation-duration: 11s; }
-        .cube face {
-          position: absolute; width: 100%; height: 100%;
-          border: 1.5px solid rgba(99,179,237,0.4);
-          background: rgba(99,179,237,0.05);
+        /* cubes */
+        .cube {
+          position: absolute; transform-style: preserve-3d;
+          animation: rotateCube linear infinite;
         }
-        .cube .front  { transform: translateZ(calc(var(--s)/2)); }
-        .cube .back   { transform: rotateY(180deg) translateZ(calc(var(--s)/2)); }
-        .cube .left   { transform: rotateY(-90deg) translateZ(calc(var(--s)/2)); }
-        .cube .right  { transform: rotateY(90deg) translateZ(calc(var(--s)/2)); }
-        .cube .top    { transform: rotateX(90deg) translateZ(calc(var(--s)/2)); }
-        .cube .bottom { transform: rotateX(-90deg) translateZ(calc(var(--s)/2)); }
-        @keyframes spin {
+        @keyframes rotateCube {
           from { transform: rotateX(0deg) rotateY(0deg); }
           to   { transform: rotateX(360deg) rotateY(360deg); }
         }
 
-        /* Floating badges */
-        .badge {
-          position: absolute; background: rgba(255,255,255,0.07);
-          backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12);
-          border-radius: 12px; padding: 10px 16px; color: #e2e8f0; font-size: 13px;
-          font-weight: 600; display: flex; align-items: center; gap: 8px;
-          animation: badgeFloat 6s ease-in-out infinite;
-          box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        /* floating chips */
+        .chip {
+          position: absolute; z-index: 5;
+          display: flex; align-items: center; gap: 9px;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.09);
+          border-radius: 10px; padding: 9px 15px;
+          color: #cbd5e1; font-size: 12.5px; font-weight: 500;
+          backdrop-filter: blur(16px);
+          animation: chipFloat ease-in-out infinite;
+          box-shadow: 0 4px 24px rgba(0,0,0,0.4);
         }
-        .badge-1 { top: 18%; left: 5%; animation-delay: 0s; }
-        .badge-2 { top: 28%; right: 5%; animation-delay: 1.5s; }
-        .badge-3 { bottom: 28%; left: 5%; animation-delay: 3s; }
-        .badge-4 { bottom: 18%; right: 5%; animation-delay: 4.5s; }
-        .badge-dot { width: 8px; height: 8px; border-radius: 50%; }
-        .badge-dot.green { background: #10b981; box-shadow: 0 0 6px #10b981; }
-        .badge-dot.blue  { background: #3b82f6; box-shadow: 0 0 6px #3b82f6; }
-        @keyframes badgeFloat { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-10px)} }
+        .chip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        .chip-dot.g { background: #10b981; box-shadow: 0 0 8px #10b981; }
+        .chip-dot.b { background: #3b82f6; box-shadow: 0 0 8px #3b82f6; }
+        .ch1 { top: 16%; left: 4%; animation-duration: 7s; animation-delay: 0s; }
+        .ch2 { top: 24%; right: 4%; animation-duration: 8s; animation-delay: 1s; }
+        .ch3 { bottom: 24%; left: 4%; animation-duration: 6.5s; animation-delay: 2s; }
+        .ch4 { bottom: 16%; right: 4%; animation-duration: 9s; animation-delay: 3s; }
+        @keyframes chipFloat {
+          0%, 100% { transform: translateY(0px); }
+          50%       { transform: translateY(-9px); }
+        }
 
-        /* Main content */
+        /* main content */
         .content {
-          position: relative; z-index: 10; text-align: center;
-          max-width: 680px; padding: 0 24px;
+          position: relative; z-index: 10;
+          text-align: center; max-width: 660px; padding: 0 24px;
         }
-        .eyebrow {
-          display: inline-flex; align-items: center; gap: 8px;
-          background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.35);
-          border-radius: 100px; padding: 6px 16px; color: #93c5fd;
-          font-size: 12px; font-weight: 600; letter-spacing: 0.08em;
-          text-transform: uppercase; margin-bottom: 28px;
+
+        .tag {
+          display: inline-block;
+          border: 1px solid rgba(59,130,246,0.3);
+          color: #60a5fa; font-size: 11px; font-weight: 600;
+          letter-spacing: 0.1em; text-transform: uppercase;
+          padding: 5px 14px; border-radius: 100px;
+          background: rgba(59,130,246,0.08);
+          margin-bottom: 26px;
         }
+
         h1 {
-          font-size: clamp(2.4rem, 5vw, 3.8rem); font-weight: 800; line-height: 1.1;
-          color: #f8fafc; margin-bottom: 20px; letter-spacing: -0.03em;
+          font-size: clamp(2.2rem, 4.5vw, 3.6rem);
+          font-weight: 800; line-height: 1.08;
+          letter-spacing: -0.04em; color: #f1f5f9;
+          margin-bottom: 18px;
         }
-        h1 span { background: linear-gradient(135deg, #3b82f6, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .sub {
-          font-size: 1.05rem; color: #94a3b8; line-height: 1.7; margin-bottom: 36px; max-width: 520px; margin-left: auto; margin-right: auto;
+        h1 em {
+          font-style: normal;
+          background: linear-gradient(90deg, #3b82f6 0%, #06b6d4 100%);
+          -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
+
+        .desc {
+          color: #64748b; font-size: 1rem; line-height: 1.75;
+          max-width: 480px; margin: 0 auto 32px;
+        }
+
         .stats {
-          display: flex; gap: 20px; justify-content: center; margin-bottom: 36px;
+          display: flex; gap: 12px; justify-content: center; margin-bottom: 32px;
         }
         .stat {
-          background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 14px; padding: 16px 24px; min-width: 120px;
+          flex: 1; max-width: 130px;
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 12px; padding: 14px 10px;
         }
-        .stat-val { font-size: 1.8rem; font-weight: 800; color: #f8fafc; }
-        .stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
-        .cta-btn {
-          background: linear-gradient(135deg, #3b82f6, #2563eb);
-          color: white; font-size: 1rem; font-weight: 700; padding: 16px 36px;
-          border: none; border-radius: 12px; cursor: pointer;
-          box-shadow: 0 0 40px rgba(59,130,246,0.4);
-          transition: all 0.2s; letter-spacing: 0.01em;
-        }
-        .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 0 60px rgba(59,130,246,0.6); }
+        .sv { font-size: 1.65rem; font-weight: 800; color: #e2e8f0; line-height: 1; }
+        .sl { font-size: 10.5px; color: #475569; text-transform: uppercase; letter-spacing: 0.07em; margin-top: 5px; }
 
-        /* Modal */
+        .btn {
+          display: inline-block;
+          background: #2563eb;
+          color: #fff; font-size: 0.95rem; font-weight: 600;
+          padding: 14px 34px; border: none; border-radius: 10px;
+          cursor: pointer; letter-spacing: 0.01em;
+          box-shadow: 0 0 0 1px rgba(37,99,235,0.5), 0 8px 32px rgba(37,99,235,0.35);
+          transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+        }
+        .btn:hover {
+          background: #1d4ed8;
+          box-shadow: 0 0 0 1px rgba(37,99,235,0.7), 0 12px 40px rgba(37,99,235,0.5);
+          transform: translateY(-1px);
+        }
+        .btn:active { transform: translateY(0); }
+
+        /* modal */
         .overlay {
-          position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-          backdrop-filter: blur(6px); z-index: 100;
+          position: fixed; inset: 0; z-index: 100;
+          background: rgba(0,0,0,0.65);
+          backdrop-filter: blur(8px);
           display: flex; align-items: center; justify-content: center;
+          padding: 24px;
         }
         .modal {
-          background: #1e293b; border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 20px; padding: 40px; width: 100%; max-width: 400px;
-          box-shadow: 0 25px 80px rgba(0,0,0,0.5);
+          background: #0f172a;
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 18px; padding: 36px 32px;
+          width: 100%; max-width: 380px;
+          box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+          position: relative;
         }
-        .modal h2 { color: #f8fafc; font-size: 1.4rem; font-weight: 800; margin-bottom: 8px; }
-        .modal p  { color: #64748b; font-size: 0.9rem; margin-bottom: 28px; }
-        .modal input {
-          width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
-          border-radius: 10px; padding: 14px 16px; color: #f8fafc; font-size: 0.95rem;
-          margin-bottom: 14px; outline: none; transition: border 0.2s;
-        }
-        .modal input:focus { border-color: #3b82f6; }
-        .modal input::placeholder { color: #475569; }
-        .modal-btn {
-          width: 100%; background: linear-gradient(135deg, #3b82f6, #2563eb);
-          color: white; font-size: 0.95rem; font-weight: 700; padding: 14px;
-          border: none; border-radius: 10px; cursor: pointer; margin-top: 4px;
-          transition: opacity 0.2s;
-        }
-        .modal-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .modal-error { color: #f87171; font-size: 0.85rem; margin-top: 10px; }
         .modal-close {
-          background: none; border: none; color: #64748b; font-size: 1.4rem;
-          position: absolute; top: 16px; right: 20px; cursor: pointer; line-height: 1;
+          position: absolute; top: 14px; right: 18px;
+          background: none; border: none; color: #475569;
+          font-size: 20px; cursor: pointer; line-height: 1;
+          transition: color 0.15s;
         }
+        .modal-close:hover { color: #94a3b8; }
+        .modal h2 { color: #f1f5f9; font-size: 1.25rem; font-weight: 700; margin-bottom: 6px; }
+        .modal-sub { color: #475569; font-size: 0.875rem; margin-bottom: 26px; }
+        .modal input {
+          display: block; width: 100%;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.09);
+          border-radius: 9px; padding: 13px 14px;
+          color: #e2e8f0; font-size: 0.9rem;
+          margin-bottom: 12px; outline: none;
+          transition: border-color 0.15s;
+        }
+        .modal input:focus { border-color: rgba(59,130,246,0.6); }
+        .modal input::placeholder { color: #334155; }
+        .modal-btn {
+          width: 100%; background: #2563eb; color: #fff;
+          font-size: 0.9rem; font-weight: 600; padding: 13px;
+          border: none; border-radius: 9px; cursor: pointer;
+          transition: background 0.15s, opacity 0.15s;
+          margin-top: 4px;
+        }
+        .modal-btn:hover:not(:disabled) { background: #1d4ed8; }
+        .modal-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .modal-err { color: #f87171; font-size: 0.82rem; margin-top: 12px; }
+        .modal-note { color: #334155; font-size: 0.78rem; text-align: center; margin-top: 14px; }
       `}</style>
 
-      <div className="scene">
-        <div className="grid-bg" />
-        <div className="orb orb-1" /><div className="orb orb-2" /><div className="orb orb-3" />
+      <div className="wrap">
+        <div className="grid" />
+        <div className="orb o1" /><div className="orb o2" /><div className="orb o3" />
 
-        {/* 3D Cubes */}
-        {[['cube-1','50'],['cube-2','35'],['cube-3','28'],['cube-4','42']].map(([cls,s])=>(
-          <div key={cls} className={`cube ${cls}`} style={{'--s': `${s}px`} as any}>
-            {['front','back','left','right','top','bottom'].map(f=><face key={f} className={f}/>)}
+        {/* 3D cubes */}
+        {cubes.map(({ cls, s, top, left, right, bottom, dur, dir }) => (
+          <div
+            key={cls}
+            className="cube"
+            style={{
+              width: s, height: s,
+              top, left, right, bottom,
+              animationDuration: dur,
+              animationDirection: (dir as any) || 'normal',
+            }}
+          >
+            {faces.map(f => (
+              <div
+                key={f}
+                style={{
+                  position: 'absolute', width: '100%', height: '100%',
+                  border: '1px solid rgba(148,163,184,0.18)',
+                  background: 'rgba(148,163,184,0.03)',
+                  transform: faceTransform(f, s),
+                }}
+              />
+            ))}
           </div>
         ))}
 
-        {/* Floating badges */}
-        <div className="badge badge-1"><div className="badge-dot green"/><span>🇩🇪 LUCID Filed</span></div>
-        <div className="badge badge-2"><div className="badge-dot blue"/><span>🇫🇷 CITEO Ready</span></div>
-        <div className="badge badge-3"><div className="badge-dot green"/><span>🇧🇪 Fost Plus ✓</span></div>
-        <div className="badge badge-4"><div className="badge-dot blue"/><span>Report Generated</span></div>
+        {/* chips */}
+        <div className="chip ch1"><div className="chip-dot g"/>🇩🇪 LUCID filed</div>
+        <div className="chip ch2"><div className="chip-dot b"/>🇫🇷 CITEO ready</div>
+        <div className="chip ch3"><div className="chip-dot g"/>🇧🇪 Fost Plus ✓</div>
+        <div className="chip ch4"><div className="chip-dot b"/>Report exported</div>
 
-        {/* Main content */}
         <div className="content">
-          <div className="eyebrow">⚡ EU EPR Compliance Platform</div>
-          <h1>Automate <span>EU Packaging</span> Compliance</h1>
-          <p className="sub">Track packaging waste and file reports across Germany, France, and Belgium — in minutes, not days.</p>
+          <div className="tag">EU EPR Compliance</div>
+          <h1>Stop doing<br/>compliance <em>manually</em></h1>
+          <p className="desc">
+            PackRegix tracks your packaging data and auto-generates EPR reports
+            for Germany, France, and Belgium — ready to submit in minutes.
+          </p>
 
           <div className="stats">
-            <div className="stat"><div className="stat-val">32</div><div className="stat-label">Hours Saved/mo</div></div>
-            <div className="stat"><div className="stat-val">3</div><div className="stat-label">Countries</div></div>
-            <div className="stat"><div className="stat-val">99%</div><div className="stat-label">Accuracy</div></div>
+            <div className="stat"><div className="sv">32h</div><div className="sl">saved / month</div></div>
+            <div className="stat"><div className="sv">3</div><div className="sl">countries</div></div>
+            <div className="stat"><div className="sv">99%</div><div className="sl">accuracy</div></div>
           </div>
 
-          <button className="cta-btn" onClick={() => setShowModal(true)}>
-            Start Compliance Trial →
+          <button className="btn" onClick={() => setShowModal(true)}>
+            Start free trial
           </button>
         </div>
       </div>
 
-      {/* Signup Modal */}
       {showModal && (
-        <div className="overlay" onClick={(e) => e.target === e.currentTarget && setShowModal(false)}>
-          <div className="modal" style={{position:'relative'}}>
+        <div className="overlay" onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}>
+          <div className="modal">
             <button className="modal-close" onClick={() => setShowModal(false)}>×</button>
-            <h2>Start Your Free Trial</h2>
-            <p>14 days free · No credit card required</p>
+            <h2>Create your account</h2>
+            <p className="modal-sub">14-day free trial · no card needed</p>
             <form onSubmit={handleSignup}>
-              <input type="email" placeholder="Work email" value={email} onChange={e=>setEmail(e.target.value)} required />
-              <input type="password" placeholder="Create password (8+ chars)" value={password} onChange={e=>setPassword(e.target.value)} required minLength={8} />
+              <input
+                type="email" placeholder="Work email"
+                value={email} onChange={e => setEmail(e.target.value)} required
+              />
+              <input
+                type="password" placeholder="Password (8+ characters)"
+                value={password} onChange={e => setPassword(e.target.value)}
+                required minLength={8}
+              />
               <button className="modal-btn" type="submit" disabled={loading}>
-                {loading ? 'Creating account...' : 'Create Free Account →'}
+                {loading ? 'Creating account…' : 'Get started →'}
               </button>
-              {error && <div className="modal-error">⚠️ {error}</div>}
+              {error && <div className="modal-err">⚠ {error}</div>}
             </form>
+            <p className="modal-note">By signing up you agree to our terms of service.</p>
           </div>
         </div>
       )}
