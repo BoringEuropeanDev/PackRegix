@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { createServiceClient } from '@/lib/supabase';
 
 function verifySignature(rawBody: string, signature: string | null) {
   if (!signature || !process.env.LEMON_WEBHOOK_SECRET) return false;
@@ -21,7 +21,8 @@ export async function POST(req: NextRequest) {
   const subId = payload.data?.id;
 
   if (uid && subId) {
-    await adminDb.collection('users').doc(uid).set({ lemon_sub_id: subId, plan: 'pro' }, { merge: true });
+    const supabase = createServiceClient();
+    await supabase.from('users').update({ lemon_sub_id: subId, plan_tier: 'pro' }).eq('uid', uid);
   }
 
   return NextResponse.json({ ok: true });

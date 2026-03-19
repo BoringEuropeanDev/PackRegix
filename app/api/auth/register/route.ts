@@ -1,18 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { uid, email, company, countries, storeUrl } = body;
+  const { email, password, company, countries } = body;
 
-  await adminDb.collection('users').doc(uid).set({
+  const cookieStore = await cookies();
+  const supabase = createServerClient(cookieStore);
+
+  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
+  if (signUpError) {
+    return NextResponse.json({ error: signUpError.message }, { status: 400 });
+  }
+
+  const uid = signUpData.user?.id;
+  if (!uid) {
+    return NextResponse.json({ error: 'User registration failed' }, { status: 400 });
+  }
+
+  const { error: insertError } = await supabase.from('users').insert({
+    uid,
     email,
     company,
     countries,
-    store_url: storeUrl,
-    plan: 'starter',
-    trial_ends: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14)
+    plan_tier: 'starter'
   });
 
-  return NextResponse.json({ ok: true });
+  if (insertError) {
+    return NextResponse.json({ error: insertError.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ ok: true, uid });
 }
