@@ -1,37 +1,46 @@
-import { createRouteHandlerClient } from '@supabase/ssr'
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-const supabase = createRouteHandlerClient({ cookies() });
-
-
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { email, password, company, countries } = body;
+  try {
+    const body = await req.json()
+    const { email, password, company, countries } = body
 
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              )
+            } catch {}
+          }
+        }
+      }
+    )
 
-  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
-  if (signUpError) {
-    return NextResponse.json({ error: signUpError.message }, { status: 400 });
+    const { data, error } = await supabase.auth.signUp({ email, password })
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+    const uid = data.user?.id
+    if (!uid) return NextResponse.json({ error: 'Registration failed' }, { status: 400 })
+
+    await supabase.from('users').insert({
+      id: uid,
+      email,
+      company,
+      countries,
+      plan_tier: 'trial'
+    })
+
+    return NextResponse.json({ ok: true, uid })
+  } catch (err) {
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
-
-  const uid = signUpData.user?.id;
-  if (!uid) {
-    return NextResponse.json({ error: 'User registration failed' }, { status: 400 });
-  }
-
-  const { error: insertError } = await supabase.from('users').insert({
-    uid,
-    email,
-    company,
-    countries,
-    plan_tier: 'starter'
-  });
-
-  if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 400 });
-  }
-
-  return NextResponse.json({ ok: true, uid });
 }
