@@ -1,327 +1,599 @@
-'use client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+'use client';
 
-export default function Home() {
-  const [showSignup, setShowSignup] = useState(false)
-  const [showLogin, setShowLogin] = useState(false)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [company, setCompany] = useState('')
-  const [vat, setVat] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const router = useRouter()
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-  function resetModal() {
-    setEmail(''); setPassword(''); setCompany(''); setVat(''); setError(''); setLoading(false)
-  }
+interface FloatingChip {
+  id: number;
+  text: string;
+  x: number;
+  y: number;
+}
 
-  async function handleSignup(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true); setError('')
+export default function LandingPage() {
+  const router = useRouter();
+  const [showSignup, setShowSignup] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [chips, setChips] = useState<FloatingChip[]>([]);
+  const [nextChipId, setNextChipId] = useState(0);
+
+  // Form states
+  const [signupData, setSignupData] = useState({
+    company: '',
+    vat: '',
+    email: '',
+    password: '',
+  });
+  const [loginData, setLoginData] = useState({
+    email: '',
+    password: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Stats animation
+  const [stats, setStats] = useState({ hours: 0, countries: 0, accuracy: 0 });
+
+  useEffect(() => {
+    // Animate stats
+    const duration = 1500;
+    const steps = 30;
+    const interval = duration / steps;
+    let step = 0;
+
+    const timer = setInterval(() => {
+      step++;
+      const progress = step / steps;
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      setStats({
+        hours: Math.round(32 * easeOut),
+        countries: Math.round(3 * easeOut),
+        accuracy: Math.round(99 * easeOut),
+      });
+      if (step >= steps) clearInterval(timer);
+    }, interval);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Floating chips
+  useEffect(() => {
+    const chipTexts = [
+      '🇩🇪 LUCID filed',
+      '🇫🇷 CITEO ready',
+      '🇧🇪 Fost Plus submitted',
+      'Q1 report generated',
+      'Compliance verified',
+      'DE deadline met',
+      'FR annual filed',
+      'BE packaging logged',
+    ];
+
+    const addChip = () => {
+      const text = chipTexts[Math.floor(Math.random() * chipTexts.length)];
+      const x = 10 + Math.random() * 70;
+      const y = 20 + Math.random() * 50;
+      
+      setChips(prev => [...prev.slice(-4), { id: nextChipId, text, x, y }]);
+      setNextChipId(prev => prev + 1);
+    };
+
+    addChip();
+    const interval = setInterval(addChip, 3500);
+
+    return () => clearInterval(interval);
+  }, [nextChipId]);
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, company, vat }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Something went wrong')
-      router.push('/dashboard')
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
+        body: JSON.stringify(signupData),
+      });
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true); setError('')
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Registration failed');
+      }
+
+      // Auto login after signup
+      const loginRes = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: signupData.email,
+          password: signupData.password,
+        }),
+      });
+
+      if (!loginRes.ok) {
+        throw new Error('Auto-login failed');
+      }
+
+      router.push('/dashboard');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Login failed')
-      router.push('/dashboard')
+        body: JSON.stringify(loginData),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+
+      router.push('/dashboard');
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
-
-  const faces = ['front','back','left','right','top','bottom']
-  const cubes = [
-    { cls: 'c1', s: 48, top: '11%', left: '7%', dur: '14s' },
-    { cls: 'c2', s: 32, top: '18%', right: '9%', dur: '10s', dir: 'reverse' },
-    { cls: 'c3', s: 24, bottom: '22%', left: '12%', dur: '18s' },
-    { cls: 'c4', s: 40, bottom: '14%', right: '10%', dur: '12s', dir: 'reverse' },
-  ]
-
-  function faceTransform(f: string, s: number) {
-    const h = `${s / 2}px`
-    if (f === 'front')  return `translateZ(${h})`
-    if (f === 'back')   return `rotateY(180deg) translateZ(${h})`
-    if (f === 'left')   return `rotateY(-90deg) translateZ(${h})`
-    if (f === 'right')  return `rotateY(90deg) translateZ(${h})`
-    if (f === 'top')    return `rotateX(90deg) translateZ(${h})`
-    return `rotateX(-90deg) translateZ(${h})`
-  }
+  };
 
   return (
-    <>
+    <div style={styles.container}>
       <style>{`
-        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { width: 100%; height: 100%; overflow: hidden; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-
-        .wrap {
-          width: 100vw; height: 100vh; overflow: hidden;
-          background: #e8e4dc;
-          display: flex; align-items: center; justify-content: center;
-          position: relative;
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-        .wrap::before {
-          content: ''; position: absolute; inset: 0;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
-          opacity: 0.5; pointer-events: none; z-index: 1;
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
         }
-        .grid {
-          position: absolute; inset: 0; z-index: 0;
-          background-image:
-            linear-gradient(rgba(60,50,30,0.07) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(60,50,30,0.07) 1px, transparent 1px);
-          background-size: 72px 72px;
+        @keyframes chipIn {
+          from { opacity: 0; transform: scale(0.9) translateY(10px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
         }
-        .orb { position: absolute; border-radius: 50%; pointer-events: none; filter: blur(100px); }
-        .o1 { width: 560px; height: 560px; background: #b5a898; opacity: 0.35; top: -200px; right: -120px; }
-        .o2 { width: 420px; height: 420px; background: #9db5a0; opacity: 0.3; bottom: -140px; left: -100px; }
-        .o3 { width: 280px; height: 280px; background: #c4b49a; opacity: 0.25; top: 38%; left: 32%; }
-
-        .cube { position: absolute; transform-style: preserve-3d; animation: rotateCube linear infinite; }
-        @keyframes rotateCube {
-          from { transform: rotateX(0deg) rotateY(0deg); }
-          to   { transform: rotateX(360deg) rotateY(360deg); }
-        }
-
-        .chip {
-          position: absolute; z-index: 5;
-          display: flex; align-items: center; gap: 9px;
-          background: rgba(255,252,245,0.55);
-          border: 1px solid rgba(180,160,130,0.3);
-          border-radius: 10px; padding: 9px 15px;
-          color: #4a3f2f; font-size: 12.5px; font-weight: 500;
-          backdrop-filter: blur(16px);
-          animation: chipFloat ease-in-out infinite;
-          box-shadow: 0 4px 20px rgba(100,80,40,0.1);
-        }
-        .chip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-        .chip-dot.g { background: #3d8f6a; box-shadow: 0 0 6px #3d8f6a; }
-        .chip-dot.b { background: #4a7ab5; box-shadow: 0 0 6px #4a7ab5; }
-        .ch1 { top: 16%; left: 4%; animation-duration: 7s; animation-delay: 0s; }
-        .ch2 { top: 24%; right: 4%; animation-duration: 8s; animation-delay: 1s; }
-        .ch3 { bottom: 24%; left: 4%; animation-duration: 6.5s; animation-delay: 2s; }
-        .ch4 { bottom: 16%; right: 4%; animation-duration: 9s; animation-delay: 3s; }
-        @keyframes chipFloat {
-          0%, 100% { transform: translateY(0px); }
-          50%       { transform: translateY(-9px); }
-        }
-
-        .content {
-          position: relative; z-index: 10;
-          text-align: center; max-width: 660px; padding: 0 24px;
-        }
-        .tag {
-          display: inline-block;
-          border: 1px solid rgba(100,80,40,0.2); color: #6b5230;
-          font-size: 11px; font-weight: 600; letter-spacing: 0.1em;
-          text-transform: uppercase; padding: 5px 14px; border-radius: 100px;
-          background: rgba(180,150,100,0.12); margin-bottom: 26px;
-        }
-        h1 {
-          font-size: clamp(2.2rem, 4.5vw, 3.6rem); font-weight: 800;
-          line-height: 1.08; letter-spacing: -0.04em; color: #1e1810; margin-bottom: 18px;
-        }
-        h1 em {
-          font-style: normal;
-          background: linear-gradient(90deg, #2d5fa6 0%, #1e8c6e 100%);
-          -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        }
-        .desc {
-          color: #7a6a55; font-size: 1rem; line-height: 1.75;
-          max-width: 480px; margin: 0 auto 32px;
-        }
-        .stats { display: flex; gap: 12px; justify-content: center; margin-bottom: 36px; }
-        .stat {
-          flex: 1; max-width: 130px;
-          background: rgba(255,252,245,0.5); border: 1px solid rgba(180,160,130,0.25);
-          border-radius: 12px; padding: 14px 10px; backdrop-filter: blur(8px);
-        }
-        .sv { font-size: 1.65rem; font-weight: 800; color: #1e1810; line-height: 1; }
-        .sl { font-size: 10.5px; color: #9a8a72; text-transform: uppercase; letter-spacing: 0.07em; margin-top: 5px; }
-
-        .cta-row { display: flex; gap: 12px; justify-content: center; align-items: center; }
-        .btn-primary {
-          background: #1e1810; color: #f5f0e8; font-size: 0.95rem; font-weight: 600;
-          padding: 14px 30px; border: none; border-radius: 10px; cursor: pointer;
-          box-shadow: 0 4px 20px rgba(30,24,16,0.25);
-          transition: background 0.15s, transform 0.1s; white-space: nowrap;
-        }
-        .btn-primary:hover { background: #3a2e1e; transform: translateY(-1px); }
-        .btn-secondary {
-          background: rgba(255,252,245,0.6); color: #4a3f2f; font-size: 0.95rem; font-weight: 500;
-          padding: 14px 26px; border: 1px solid rgba(180,160,130,0.35); border-radius: 10px;
-          cursor: pointer; backdrop-filter: blur(8px);
-          transition: background 0.15s, transform 0.1s; white-space: nowrap;
-        }
-        .btn-secondary:hover { background: rgba(255,252,245,0.85); transform: translateY(-1px); }
-
-        .overlay {
-          position: fixed; inset: 0; z-index: 100;
-          background: rgba(20,15,8,0.5); backdrop-filter: blur(8px);
-          display: flex; align-items: center; justify-content: center; padding: 24px;
-        }
-        .modal {
-          background: #faf7f2; border: 1px solid rgba(180,160,130,0.3);
-          border-radius: 18px; padding: 36px 32px; width: 100%; max-width: 400px;
-          box-shadow: 0 32px 80px rgba(20,15,8,0.25); position: relative;
-        }
-        .modal-close {
-          position: absolute; top: 14px; right: 18px;
-          background: none; border: none; color: #a09080;
-          font-size: 20px; cursor: pointer; line-height: 1; transition: color 0.15s;
-        }
-        .modal-close:hover { color: #4a3f2f; }
-        .modal h2 { color: #1e1810; font-size: 1.25rem; font-weight: 700; margin-bottom: 6px; }
-        .modal-sub { color: #9a8a72; font-size: 0.875rem; margin-bottom: 24px; }
-        .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-        .modal input {
-          display: block; width: 100%;
-          background: #fff; border: 1px solid rgba(180,160,130,0.35);
-          border-radius: 9px; padding: 12px 14px; color: #1e1810; font-size: 0.9rem;
-          margin-bottom: 10px; outline: none; transition: border-color 0.15s;
-        }
-        .input-row input { margin-bottom: 0; }
-        .modal input:focus { border-color: #4a7ab5; }
-        .modal input::placeholder { color: #c0b09a; }
-        .modal-btn {
-          width: 100%; background: #1e1810; color: #f5f0e8;
-          font-size: 0.9rem; font-weight: 600; padding: 13px;
-          border: none; border-radius: 9px; cursor: pointer;
-          transition: background 0.15s, opacity 0.15s; margin-top: 4px;
-        }
-        .modal-btn:hover:not(:disabled) { background: #3a2e1e; }
-        .modal-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-        .modal-err { color: #b94040; font-size: 0.82rem; margin-top: 10px; }
-        .modal-note { color: #b0a090; font-size: 0.78rem; text-align: center; margin-top: 14px; }
-        .modal-switch { color: #7a6a55; font-size: 0.82rem; text-align: center; margin-top: 10px; }
-        .modal-switch button {
-          background: none; border: none; color: #2d5fa6;
-          font-size: 0.82rem; cursor: pointer; padding: 0; text-decoration: underline;
+        @keyframes chipOut {
+          from { opacity: 1; transform: scale(1); }
+          to { opacity: 0; transform: scale(0.9); }
         }
       `}</style>
 
-      <div className="wrap">
-        <div className="grid" />
-        <div className="orb o1" /><div className="orb o2" /><div className="orb o3" />
-
-        {cubes.map(({ cls, s, top, left, right, bottom, dur, dir }: any) => (
-          <div key={cls} className="cube" style={{
-            width: s, height: s, top, left, right, bottom,
-            animationDuration: dur, animationDirection: dir || 'normal',
-          }}>
-            {faces.map(f => (
-              <div key={f} style={{
-                position: 'absolute', width: '100%', height: '100%',
-                border: '1px solid rgba(100,80,40,0.2)',
-                background: 'rgba(180,150,100,0.04)',
-                transform: faceTransform(f, s),
-              }}/>
-            ))}
+      {/* Floating Activity Chips */}
+      <div style={styles.chipsContainer}>
+        {chips.map((chip, index) => (
+          <div
+            key={chip.id}
+            style={{
+              ...styles.chip,
+              left: `${chip.x}%`,
+              top: `${chip.y}%`,
+              animation: `chipIn 0.4s ease-out ${index * 0.1}s both, float 4s ease-in-out ${index * 0.5}s infinite`,
+            }}
+          >
+            {chip.text}
           </div>
         ))}
-
-        <div className="chip ch1"><div className="chip-dot g"/>🇩🇪 LUCID filed</div>
-        <div className="chip ch2"><div className="chip-dot b"/>🇫🇷 CITEO ready</div>
-        <div className="chip ch3"><div className="chip-dot g"/>🇧🇪 Fost Plus ✓</div>
-        <div className="chip ch4"><div className="chip-dot b"/>Report exported</div>
-
-        <div className="content">
-          <div className="tag">EU EPR Compliance</div>
-          <h1>Stop doing<br/>compliance <em>manually</em></h1>
-          <p className="desc">
-            PackRegix tracks your packaging data and auto-generates EPR reports
-            for Germany, France, and Belgium — ready to submit in minutes.
-          </p>
-          <div className="stats">
-            <div className="stat"><div className="sv">32h</div><div className="sl">saved / month</div></div>
-            <div className="stat"><div className="sv">3</div><div className="sl">countries</div></div>
-            <div className="stat"><div className="sv">99%</div><div className="sl">accuracy</div></div>
-          </div>
-          <div className="cta-row">
-            <button className="btn-primary" onClick={() => { resetModal(); setShowSignup(true) }}>
-              Get compliant today →
-            </button>
-            <button className="btn-secondary" onClick={() => { resetModal(); setShowLogin(true) }}>
-              Sign in
-            </button>
-          </div>
-        </div>
       </div>
 
+      {/* Main Content */}
+      <div style={styles.content}>
+        {/* Logo */}
+        <div style={styles.logo}>PackRegix</div>
+
+        {/* Hero */}
+        <h1 style={styles.title}>
+          EU EPR Compliance,
+          <br />
+          Automated.
+        </h1>
+
+        <p style={styles.subtitle}>
+          Log packaging. Generate reports. File with confidence.
+          <br />
+          Germany LUCID, France CITEO, Belgium Fost Plus.
+        </p>
+
+        {/* Stats */}
+        <div style={styles.stats}>
+          <div style={styles.stat}>
+            <div style={styles.statNumber}>{stats.hours}h</div>
+            <div style={styles.statLabel}>saved/month</div>
+          </div>
+          <div style={styles.statDivider} />
+          <div style={styles.stat}>
+            <div style={styles.statNumber}>{stats.countries}</div>
+            <div style={styles.statLabel}>countries</div>
+          </div>
+          <div style={styles.statDivider} />
+          <div style={styles.stat}>
+            <div style={styles.statNumber}>{stats.accuracy}%</div>
+            <div style={styles.statLabel}>accuracy</div>
+          </div>
+        </div>
+
+        {/* CTAs */}
+        <div style={styles.ctas}>
+          <button
+            style={styles.primaryButton}
+            onClick={() => setShowSignup(true)}
+          >
+            Start free trial
+          </button>
+          <button
+            style={styles.secondaryButton}
+            onClick={() => setShowLogin(true)}
+          >
+            Sign in
+          </button>
+        </div>
+
+        <p style={styles.trialNote}>14-day free trial. No credit card required.</p>
+      </div>
+
+      {/* Signup Modal */}
       {showSignup && (
-        <div className="overlay" onClick={e => { if (e.target === e.currentTarget) setShowSignup(false) }}>
-          <div className="modal">
-            <button className="modal-close" onClick={() => setShowSignup(false)}>×</button>
-            <h2>Create your account</h2>
-            <p className="modal-sub">14-day free trial · full access · no card needed</p>
+        <div style={styles.modalOverlay} onClick={() => setShowSignup(false)}>
+          <div style={styles.modal} onClick={e => e.stopPropagation()}>
+            <button style={styles.closeButton} onClick={() => setShowSignup(false)}>
+              ×
+            </button>
+            <h2 style={styles.modalTitle}>Create your account</h2>
+            
+            {error && <div style={styles.error}>{error}</div>}
+            
             <form onSubmit={handleSignup}>
-              <div className="input-row">
-                <input type="text" placeholder="Company name" value={company} onChange={e => setCompany(e.target.value)} required />
-                <input type="text" placeholder="VAT number" value={vat} onChange={e => setVat(e.target.value)} required />
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Company name</label>
+                <input
+                  style={styles.input}
+                  type="text"
+                  value={signupData.company}
+                  onChange={e => setSignupData({ ...signupData, company: e.target.value })}
+                  required
+                />
               </div>
-              <input type="email" placeholder="Work email" value={email} onChange={e => setEmail(e.target.value)} required />
-              <input type="password" placeholder="Password (8+ characters)" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
-              <button className="modal-btn" type="submit" disabled={loading}>
-                {loading ? 'Creating account…' : 'Start free trial →'}
+              
+              <div style={styles.formGroup}>
+                <label style={styles.label}>VAT number</label>
+                <input
+                  style={styles.input}
+                  type="text"
+                  value={signupData.vat}
+                  onChange={e => setSignupData({ ...signupData, vat: e.target.value })}
+                  placeholder="e.g. DE123456789"
+                />
+              </div>
+              
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Email</label>
+                <input
+                  style={styles.input}
+                  type="email"
+                  value={signupData.email}
+                  onChange={e => setSignupData({ ...signupData, email: e.target.value })}
+                  required
+                />
+              </div>
+              
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Password</label>
+                <input
+                  style={styles.input}
+                  type="password"
+                  value={signupData.password}
+                  onChange={e => setSignupData({ ...signupData, password: e.target.value })}
+                  required
+                  minLength={8}
+                />
+              </div>
+              
+              <button
+                style={{ ...styles.primaryButton, width: '100%', marginTop: 8 }}
+                type="submit"
+                disabled={loading}
+              >
+                {loading ? 'Creating account...' : 'Create account'}
               </button>
-              {error && <div className="modal-err">⚠ {error}</div>}
             </form>
-            <p className="modal-note">By signing up you agree to our terms of service.</p>
-            <p className="modal-switch">
+            
+            <p style={styles.switchText}>
               Already have an account?{' '}
-              <button onClick={() => { resetModal(); setShowSignup(false); setShowLogin(true) }}>Sign in</button>
+              <button
+                style={styles.linkButton}
+                onClick={() => {
+                  setShowSignup(false);
+                  setShowLogin(true);
+                  setError('');
+                }}
+              >
+                Sign in
+              </button>
             </p>
           </div>
         </div>
       )}
 
+      {/* Login Modal */}
       {showLogin && (
-        <div className="overlay" onClick={e => { if (e.target === e.currentTarget) setShowLogin(false) }}>
-          <div className="modal">
-            <button className="modal-close" onClick={() => setShowLogin(false)}>×</button>
-            <h2>Welcome back</h2>
-            <p className="modal-sub">Sign in to your workspace</p>
+        <div style={styles.modalOverlay} onClick={() => setShowLogin(false)}>
+          <div style={styles.modal} onClick={e => e.stopPropagation()}>
+            <button style={styles.closeButton} onClick={() => setShowLogin(false)}>
+              ×
+            </button>
+            <h2 style={styles.modalTitle}>Sign in</h2>
+            
+            {error && <div style={styles.error}>{error}</div>}
+            
             <form onSubmit={handleLogin}>
-              <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
-              <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
-              <button className="modal-btn" type="submit" disabled={loading}>
-                {loading ? 'Signing in…' : 'Sign in →'}
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Email</label>
+                <input
+                  style={styles.input}
+                  type="email"
+                  value={loginData.email}
+                  onChange={e => setLoginData({ ...loginData, email: e.target.value })}
+                  required
+                />
+              </div>
+              
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Password</label>
+                <input
+                  style={styles.input}
+                  type="password"
+                  value={loginData.password}
+                  onChange={e => setLoginData({ ...loginData, password: e.target.value })}
+                  required
+                />
+              </div>
+              
+              <button
+                style={{ ...styles.primaryButton, width: '100%', marginTop: 8 }}
+                type="submit"
+                disabled={loading}
+              >
+                {loading ? 'Signing in...' : 'Sign in'}
               </button>
-              {error && <div className="modal-err">⚠ {error}</div>}
             </form>
-            <p className="modal-switch">
-              No account yet?{' '}
-              <button onClick={() => { resetModal(); setShowLogin(false); setShowSignup(true) }}>Start free trial</button>
+            
+            <p style={styles.switchText}>
+              Don&apos;t have an account?{' '}
+              <button
+                style={styles.linkButton}
+                onClick={() => {
+                  setShowLogin(false);
+                  setShowSignup(true);
+                  setError('');
+                }}
+              >
+                Start free trial
+              </button>
             </p>
           </div>
         </div>
       )}
-    </>
-  )
+    </div>
+  );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  container: {
+    minHeight: '100vh',
+    backgroundColor: '#e8e4dc',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  },
+  chipsContainer: {
+    position: 'absolute',
+    inset: 0,
+    pointerEvents: 'none',
+  },
+  chip: {
+    position: 'absolute',
+    backgroundColor: '#faf7f2',
+    border: '1px solid rgba(180,160,130,0.28)',
+    borderRadius: 20,
+    padding: '8px 16px',
+    fontSize: '0.8rem',
+    color: '#4a3f2f',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+    whiteSpace: 'nowrap',
+  },
+  content: {
+    textAlign: 'center',
+    zIndex: 1,
+    padding: '40px',
+    maxWidth: 600,
+    animation: 'fadeInUp 0.8s ease-out',
+  },
+  logo: {
+    fontSize: '1.1rem',
+    fontWeight: 700,
+    color: '#1e1810',
+    letterSpacing: '-0.02em',
+    marginBottom: 48,
+  },
+  title: {
+    fontSize: '3rem',
+    fontWeight: 800,
+    color: '#1e1810',
+    letterSpacing: '-0.03em',
+    lineHeight: 1.1,
+    margin: '0 0 20px 0',
+  },
+  subtitle: {
+    fontSize: '1.1rem',
+    color: '#7a6a55',
+    lineHeight: 1.6,
+    margin: '0 0 40px 0',
+  },
+  stats: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 32,
+    marginBottom: 40,
+  },
+  stat: {
+    textAlign: 'center',
+  },
+  statNumber: {
+    fontSize: '2.2rem',
+    fontWeight: 800,
+    color: '#1e1810',
+    fontFamily: "'SF Mono', 'Fira Code', monospace",
+    letterSpacing: '-0.02em',
+  },
+  statLabel: {
+    fontSize: '0.75rem',
+    color: '#9a8a72',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    fontWeight: 600,
+    marginTop: 4,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: 'rgba(180,160,130,0.3)',
+  },
+  ctas: {
+    display: 'flex',
+    gap: 16,
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  primaryButton: {
+    backgroundColor: '#1e1810',
+    color: '#f5f0e8',
+    border: 'none',
+    borderRadius: 8,
+    padding: '12px 28px',
+    fontSize: '0.9rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'opacity 0.2s',
+  },
+  secondaryButton: {
+    backgroundColor: 'transparent',
+    border: '1px solid rgba(180,160,130,0.4)',
+    color: '#4a3f2f',
+    borderRadius: 8,
+    padding: '12px 28px',
+    fontSize: '0.9rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'background-color 0.2s',
+  },
+  trialNote: {
+    fontSize: '0.8rem',
+    color: '#9a8a72',
+    margin: 0,
+  },
+  modalOverlay: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(30,24,16,0.4)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+    backdropFilter: 'blur(4px)',
+  },
+  modal: {
+    backgroundColor: '#faf7f2',
+    borderRadius: 10,
+    padding: '36px',
+    width: '100%',
+    maxWidth: 400,
+    position: 'relative',
+    border: '1px solid rgba(180,160,130,0.28)',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    background: 'none',
+    border: 'none',
+    fontSize: '1.5rem',
+    color: '#9a8a72',
+    cursor: 'pointer',
+    padding: 0,
+    width: 32,
+    height: 32,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTitle: {
+    fontSize: '1.3rem',
+    fontWeight: 700,
+    color: '#1e1810',
+    margin: '0 0 24px 0',
+    letterSpacing: '-0.02em',
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    display: 'block',
+    fontSize: '10px',
+    fontWeight: 600,
+    color: '#9a8a72',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    marginBottom: 6,
+  },
+  input: {
+    width: '100%',
+    backgroundColor: '#f0ece4',
+    border: '1px solid rgba(180,160,130,0.35)',
+    borderRadius: 8,
+    padding: '10px 13px',
+    fontSize: '0.9rem',
+    color: '#1e1810',
+    boxSizing: 'border-box',
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  },
+  error: {
+    backgroundColor: 'rgba(185,64,64,0.08)',
+    color: '#b94040',
+    padding: '10px 14px',
+    borderRadius: 8,
+    fontSize: '0.85rem',
+    marginBottom: 16,
+  },
+  switchText: {
+    fontSize: '0.85rem',
+    color: '#7a6a55',
+    textAlign: 'center',
+    margin: '20px 0 0 0',
+  },
+  linkButton: {
+    background: 'none',
+    border: 'none',
+    color: '#4a7ab5',
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    padding: 0,
+    textDecoration: 'underline',
+  },
+};
