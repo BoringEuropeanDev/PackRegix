@@ -230,4 +230,7 @@ async function generatePDF(
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,
+          },
+  })
+}
     
