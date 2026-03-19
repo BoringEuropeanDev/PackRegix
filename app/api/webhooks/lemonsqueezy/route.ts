@@ -12,7 +12,7 @@ function verifySignature(rawBody: string, signature: string | null) {
     .digest('hex')
   
   return crypto.timingSafeEqual(
-    Buffer.from(digest), 
+    Buffer.from(digest),
     Buffer.from(signature.replace('sha256=', ''))
   )
 }
@@ -22,14 +22,12 @@ export async function POST(req: NextRequest) {
     const rawBody = await req.text()
     const signature = req.headers.get('x-lemon-squeezy-signature') || req.headers.get('x-signature')
 
-    // Verify webhook signature
     if (!verifySignature(rawBody, signature)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
 
     const payload = JSON.parse(rawBody)
-    
-    // Handle subscription events
+
     if (payload.event === 'subscription_created' || payload.event === 'subscription_updated') {
       const uid = payload.meta?.custom_data?.uid
       const subId = payload.data?.id
