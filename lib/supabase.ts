@@ -1,16 +1,39 @@
-// lib/supabase.ts - Supabase SSR for Next.js 15
-import { createServerClient, createRouteHandlerClient } from '@supabase/ssr'
+import { createServerClient, createRouteHandlerClient, createBrowserClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { createClient } from '@supabase/supabase-js'
+import { type CookieOptions } from '@supabase/ssr'
 
-export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-export const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export const createClientComponentClient = () => 
-  createClient(supabaseUrl, supabaseAnonKey)
+export function createClientComponentClient() {
+  return createBrowserClient(supabaseUrl, supabaseKey)
+}
 
-export const createServerComponentClient = () => 
-  createServerClient(supabaseUrl, supabaseAnonKey, cookies())
+export function createServerComponentClient() {
+  const cookieStore = cookies()
 
-export const createRouteHandlerClient = () => 
-  createRouteHandlerClient({ cookies })
+  return createServerClient(supabaseUrl, supabaseKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll()
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => 
+            cookieStore.set(name, value, options)
+          )
+        } catch {
+          // Ignore if called from Server Component
+        }
+      },
+    },
+  })
+}
+
+export function createRouteHandlerClient() {
+  return createRouteHandlerClient({ 
+    cookies 
+  })
+}
+
+export { supabaseUrl, supabaseKey }  // <- For middleware
