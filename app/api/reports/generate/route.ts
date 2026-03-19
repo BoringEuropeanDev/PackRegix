@@ -3,10 +3,26 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 
+const MATERIALS = ['plastic', 'paper', 'glass', 'metal', 'wood', 'mixed']
+
+function buildReportData(entries: any[]): Record<string, { kg: number; units?: number }> {
+  const totals: Record<string, { kg: number; units: number }> = {}
+  for (const entry of entries) {
+    const mats = entry.materials || {}
+    for (const [mat, vals] of Object.entries(mats) as any) {
+      if (!totals[mat]) totals[mat] = { kg: 0, units: 0 }
+      totals[mat].kg += vals.kg || 0
+      totals[mat].units += vals.units || 0
+    }
+  }
+  return totals
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { country, format } = body // 'DE' | 'FR' | 'BE', format 'csv' | 'pdf'
+    const { country, period, format } = body
+    // period = '2026-Q1', format = 'csv' | 'pdf'
 
     const cookieStore = await cookies()
     const supabase = createServerClient(
@@ -15,65 +31,84 @@ export async function POST(req: NextRequest) {
       { cookies: { getAll: () => cookieStore.getAll(), setAll: (c) => c.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) } }
     )
 
-    // Get user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
-    // Get user profile + packaging data
-    const { data: userData } = await supabase.from('users').select('*').eq('id', user.id).single()
-    const { data: packagingData } = await supabase
-      .from('packaging')
+    const { data: profile } = await supabase
+      .from('users')
+      .select('id, company, email')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+
+    // Get packaging entries for this country + period
+    // period_start between Q1 = 2026-01-01 and 2026-03-31
+    const [year, q] = period.split('-Q')
+    const qStart = ['01-01','04-01','07-01','10-01'][+q - 1]
+    const qEnd   = ['03-31','06-30','09-30','12-31'][+q - 1]
+
+    const { data: entries, error: fetchError } = await supabase
+      .from('packaging_entries')
       .select('*')
       .eq('user_id', user.id)
       .eq('country', country)
+      .gte('period_start', `${year}-${qStart}`)
+      .lte('period_end', `${year}-${qEnd}`)
 
-    if (!userData || !packagingData?.length) {
-      return NextResponse.json({ error: 'No data found' }, { status: 404 })
-    }
+    if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 400 })
+    if (!entries?.length) return NextResponse.json({ error: 'No data for this period' }, { status: 404 })
 
-    // Generate filename
-    const timestamp = new Date().toISOString().split('T')[0]
-    const filename = `${userData.company}_${country}_EPR_${timestamp}.${format === 'pdf' ? 'pdf' : 'csv'}`
+    const reportData = buildReportData(entries)
+    const totalKg = Object.values(reportData).reduce((s, v) => s + v.kg, 0)
+    const filename = `${profile.company}_${country}_${period}.${format === 'pdf' ? 'pdf' : 'csv'}`
+
+    // Save report record
+    await supabase.from('reports').insert({
+      user_id: user.id,
+      country,
+      period,
+      data: { ...reportData, totalKg },
+    })
 
     if (format === 'csv') {
-      return generateCSV(userData, packagingData, country, filename)
-    } else if (format === 'pdf') {
-      return generatePDF(userData, packagingData, country, filename)
+      return generateCSV(profile, country, period, reportData, totalKg, filename)
+    } else {
+      return generatePDF(profile, country, period, reportData, totalKg, filename)
     }
-
-    return NextResponse.json({ error: 'Invalid format' }, { status: 400 })
-  } catch (error) {
-    console.error('Generate report error:', error)
+  } catch (err) {
+    console.error('Generate report error:', err)
     return NextResponse.json({ error: 'Failed to generate report' }, { status: 500 })
   }
 }
 
-function generateCSV(userData: any, packagingData: any[], country: string, filename: string) {
+function generateCSV(profile: any, country: string, period: string, data: any, totalKg: number, filename: string) {
+  const label = country === 'DE' ? 'LUCID (Germany)' : country === 'FR' ? 'CITEO (France)' : 'Fost Plus (Belgium)'
+
   const rows = [
-    ['PackRegix EPR Report', userData.company],
-    ['Country', country],
+    ['PackRegix EPR Compliance Report'],
+    ['Company', profile.company],
+    ['EPR Scheme', label],
+    ['Period', period],
     ['Generated', new Date().toISOString()],
     [''],
-    ['Date', 'Material Type', 'Weight (kg)', 'Notes'],
+    ['Material', 'Weight (kg)', 'Units'],
   ]
 
-  packagingData.forEach((item) => {
+  for (const [mat, vals] of Object.entries(data) as any) {
     rows.push([
-      new Date(item.date).toLocaleDateString(),
-      item.material_type || 'Unknown',
-      item.weight_kg?.toString() || '0',
-      item.notes || '',
+      mat.charAt(0).toUpperCase() + mat.slice(1),
+      vals.kg?.toFixed(2) || '0',
+      vals.units?.toString() || '—',
     ])
-  })
+  }
 
-  const total = packagingData.reduce((sum: number, item: any) => sum + (item.weight_kg || 0), 0)
   rows.push([''])
-  rows.push(['TOTAL', '', total.toFixed(2), 'kg'])
+  rows.push(['TOTAL', totalKg.toFixed(2), ''])
 
-  const csv = rows.map((row) => row.map((cell) => `"${cell}"`).join(',')).join('\n')
+  const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n')
 
   return new NextResponse(csv, {
-    status: 200,
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="${filename}"`,
@@ -81,57 +116,60 @@ function generateCSV(userData: any, packagingData: any[], country: string, filen
   })
 }
 
-async function generatePDF(userData: any, packagingData: any[], country: string, filename: string) {
+async function generatePDF(profile: any, country: string, period: string, data: any, totalKg: number, filename: string) {
+  const label = country === 'DE' ? 'LUCID — Germany' : country === 'FR' ? 'CITEO — France' : 'Fost Plus — Belgium'
   const pdfDoc = await PDFDocument.create()
-  const page = pdfDoc.addPage([612, 792]) // Letter size
+  const page = pdfDoc.addPage([595, 842]) // A4
   const { height } = page.getSize()
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
-  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  const dark = rgb(0.12, 0.1, 0.06)
+  const muted = rgb(0.6, 0.54, 0.44)
 
   let y = height - 50
 
-  // Header
-  page.drawText('PackRegix EPR Report', { x: 50, y, font: boldFont, size: 20, color: rgb(0.12, 0.1, 0.06) })
-  y -= 30
-  page.drawText(`Company: ${userData.company}`, { x: 50, y, font, size: 10 })
-  y -= 15
-  page.drawText(`Country: ${country}`, { x: 50, y, font, size: 10 })
-  y -= 15
-  page.drawText(`Generated: ${new Date().toISOString()}`, { x: 50, y, font, size: 10 })
-  y -= 30
+  // Header bar
+  page.drawRectangle({ x: 0, y: height - 80, width: 595, height: 80, color: rgb(0.12, 0.1, 0.06) })
+  page.drawText('PackRegix', { x: 40, y: height - 52, font: bold, size: 18, color: rgb(0.96, 0.94, 0.91) })
+  page.drawText('EPR Compliance Report', { x: 40, y: height - 68, font, size: 10, color: rgb(0.6, 0.54, 0.44) })
+
+  y = height - 110
+
+  // Meta
+  page.drawText(profile.company, { x: 40, y, font: bold, size: 14, color: dark }); y -= 20
+  page.drawText(`${label}  ·  Period: ${period}`, { x: 40, y, font, size: 10, color: muted }); y -= 14
+  page.drawText(`Generated: ${new Date().toLocaleDateString('en-GB')}`, { x: 40, y, font, size: 9, color: muted }); y -= 30
+
+  // Divider
+  page.drawLine({ start: { x: 40, y }, end: { x: 555, y }, thickness: 0.5, color: rgb(0.75, 0.68, 0.58) }); y -= 22
 
   // Table header
-  page.drawText('Date', { x: 50, y, font: boldFont, size: 10 })
-  page.drawText('Material', { x: 200, y, font: boldFont, size: 10 })
-  page.drawText('Weight (kg)', { x: 350, y, font: boldFont, size: 10 })
-  page.drawText('Notes', { x: 450, y, font: boldFont, size: 10 })
-  y -= 20
+  page.drawText('Material', { x: 40, y, font: bold, size: 10, color: dark })
+  page.drawText('Weight (kg)', { x: 280, y, font: bold, size: 10, color: dark })
+  page.drawText('Units', { x: 430, y, font: bold, size: 10, color: dark })
+  y -= 18
 
-  // Data rows
-  packagingData.forEach((item) => {
-    if (y < 50) {
-      const newPage = pdfDoc.addPage([612, 792])
-      y = height - 50
-      page = newPage
-    }
+  // Table rows
+  let rowBg = false
+  for (const [mat, vals] of Object.entries(data) as any) {
+    if (rowBg) page.drawRectangle({ x: 35, y: y - 4, width: 525, height: 18, color: rgb(0.95, 0.92, 0.88) })
+    page.drawText(mat.charAt(0).toUpperCase() + mat.slice(1), { x: 40, y, font, size: 10, color: dark })
+    page.drawText((vals.kg || 0).toFixed(2), { x: 280, y, font, size: 10, color: dark })
+    page.drawText((vals.units || '—').toString(), { x: 430, y, font, size: 10, color: dark })
+    y -= 20
+    rowBg = !rowBg
+  }
 
-    page.drawText(new Date(item.date).toLocaleDateString(), { x: 50, y, font, size: 9 })
-    page.drawText(item.material_type || 'Unknown', { x: 200, y, font, size: 9 })
-    page.drawText((item.weight_kg || 0).toFixed(2), { x: 350, y, font, size: 9 })
-    page.drawText(item.notes || '', { x: 450, y, font, size: 9 })
-    y -= 15
-  })
+  y -= 8
+  page.drawLine({ start: { x: 40, y }, end: { x: 555, y }, thickness: 0.5, color: rgb(0.75, 0.68, 0.58) }); y -= 16
+  page.drawText('TOTAL', { x: 40, y, font: bold, size: 11, color: dark })
+  page.drawText(`${totalKg.toFixed(2)} kg`, { x: 280, y, font: bold, size: 11, color: dark })
 
-  // Total
-  y -= 15
-  const total = packagingData.reduce((sum: number, item: any) => sum + (item.weight_kg || 0), 0)
-  page.drawText('TOTAL', { x: 50, y, font: boldFont, size: 10 })
-  page.drawText(`${total.toFixed(2)} kg`, { x: 350, y, font: boldFont, size: 10 })
+  // Footer
+  page.drawText('Generated by PackRegix · packregix.com', { x: 40, y: 30, font, size: 8, color: muted })
 
   const pdfBytes = await pdfDoc.save()
-
   return new NextResponse(pdfBytes, {
-    status: 200,
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,
